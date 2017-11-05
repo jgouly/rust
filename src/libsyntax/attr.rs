@@ -20,7 +20,7 @@ use ast::{MetaItem, MetaItemKind, NestedMetaItem, NestedMetaItemKind};
 use ast::{Lit, LitKind, Expr, ExprKind, Item, Local, Stmt, StmtKind};
 use codemap::{Spanned, respan, dummy_spanned};
 use syntax_pos::{Span, DUMMY_SP};
-use errors::Handler;
+use errors::{DiagnosticBuilder, Handler};
 use feature_gate::{Features, GatedCfg};
 use parse::lexer::comments::{doc_comment_style, strip_doc_comment_decoration};
 use parse::parser::Parser;
@@ -528,39 +528,50 @@ pub enum InlineAttr {
     Never,
 }
 
+pub fn process_inline_attr<'a>(session: Option<&'a Handler>, attr: &Attribute) -> Result<InlineAttr, DiagnosticBuilder<'a>> {
+   let meta = match attr.meta() {
+       Some(meta) => meta.node,
+       None =>{ assert!(false, "Unimplemented!"); return Ok(InlineAttr::None); },
+   };
+   match meta {
+       MetaItemKind::Word => {
+           mark_used(attr);
+           Ok(InlineAttr::Hint)
+       }
+       MetaItemKind::List(ref items) => {
+           mark_used(attr);
+           if items.len() != 1 {
+               session.map_or(Ok(InlineAttr::None), |s|
+                   Err(struct_span_err!(s, attr.span, E0534, "expected one argument"))
+               )
+           } else if items[0].check_name("always") {
+               Ok(InlineAttr::Always)
+           } else if items[0].check_name("never") {
+               Ok(InlineAttr::Never)
+           } else {
+               session.map_or(Ok(InlineAttr::None), |s|
+                   Err(struct_span_err!(s, items[0].span, E0535, "invalid argument"))
+               )
+           }
+       }
+       _ => Ok(InlineAttr::None),
+   }
+}
+
 /// Determine what `#[inline]` attribute is present in `attrs`, if any.
-pub fn find_inline_attr(diagnostic: Option<&Handler>, attrs: &[Attribute]) -> InlineAttr {
+pub fn find_inline_attr(_diagnostic: Option<&Handler>, attrs: &[Attribute]) -> InlineAttr {
     attrs.iter().fold(InlineAttr::None, |ia, attr| {
         if attr.path != "inline" {
             return ia;
         }
-        let meta = match attr.meta() {
-            Some(meta) => meta.node,
-            None => return ia,
-        };
-        match meta {
-            MetaItemKind::Word => {
-                mark_used(attr);
-                InlineAttr::Hint
-            }
-            MetaItemKind::List(ref items) => {
-                mark_used(attr);
-                if items.len() != 1 {
-                    diagnostic.map(|d|{ span_err!(d, attr.span, E0534, "expected one argument"); });
-                    InlineAttr::None
-                } else if list_contains_name(&items[..], "always") {
-                    InlineAttr::Always
-                } else if list_contains_name(&items[..], "never") {
-                    InlineAttr::Never
-                } else {
-                    diagnostic.map(|d| {
-                        span_err!(d, items[0].span, E0535, "invalid argument");
-                    });
-
-                    InlineAttr::None
-                }
-            }
-            _ => ia,
+        if !_diagnostic.is_some() && ::std::env::var_os("ASSERT").is_some() {
+            println!("find_inline_attr attr = {:?}", attr);
+            assert!(is_used(attr), "Attr should be marked as used already!");
+        }
+        let inline_attr = process_inline_attr(None, attr);
+        match inline_attr {
+            Ok(a) => a,
+            Err(_) => { assert!(false, "Should have diganosed inline attr already!"); return ia; },
         }
     })
 }

@@ -96,7 +96,7 @@ pub fn set_probestack(ccx: &CrateContext, llfn: ValueRef) {
 /// attributes.
 pub fn from_fn_attrs(ccx: &CrateContext, attrs: &[ast::Attribute], llfn: ValueRef) {
     use syntax::attr::*;
-    inline(llfn, find_inline_attr(Some(ccx.sess().diagnostic()), attrs));
+    inline(llfn, find_inline_attr(None, attrs));
 
     set_frame_pointer_elimination(ccx, llfn);
     set_probestack(ccx, llfn);

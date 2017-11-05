@@ -39,6 +39,16 @@ impl Target {
             _ => Target::Other,
         }
     }
+
+    fn from_trait_item(_item: &ast::TraitItem) -> Target {
+        // TODO
+        Target::Fn
+    }
+
+    fn from_impl_item(_item: &ast::ImplItem) -> Target {
+        // TODO
+        Target::Fn
+    }
 }
 
 struct CheckAttrVisitor<'a> {
@@ -63,6 +73,14 @@ impl<'a> CheckAttrVisitor<'a> {
             struct_span_err!(self.sess, attr.span, E0518, "attribute should be applied to function")
                 .span_label(item.span, "not a function")
                 .emit();
+        }
+        if ::std::env::var_os("ATTR").is_some() {
+                println!("check_inline attr = {:?}", attr);
+        }
+        let x = ::syntax::attr::process_inline_attr(Some(self.sess.diagnostic()), attr);
+        match x {
+            Ok(_) => {},
+            Err(mut y) => y.emit(),
         }
     }
 
@@ -156,6 +174,22 @@ impl<'a> Visitor<'a> for CheckAttrVisitor<'a> {
             self.check_attribute(attr, item, target);
         }
         visit::walk_item(self, item);
+    }
+
+    fn visit_trait_item(&mut self, item: &'a ast::TraitItem) {
+        let target = Target::from_trait_item(item);
+        for attr in &item.attrs {
+            self.check_attribute(attr, target);
+        }
+        visit::walk_trait_item(self, item);
+    }
+
+    fn visit_impl_item(&mut self, item: &'a ast::ImplItem) {
+        let target = Target::from_impl_item(item);
+        for attr in &item.attrs {
+            self.check_attribute(attr, target);
+        }
+        visit::walk_impl_item(self, item);
     }
 }
 

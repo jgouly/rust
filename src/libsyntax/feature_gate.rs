@@ -841,7 +841,7 @@ pub const BUILTIN_ATTRIBUTES: &'static [(&'static str, AttributeType, AttributeG
         "the `#[target_feature]` attribute is an experimental feature",
         cfg_fn!(target_feature))),
     ("export_name", Whitelisted, Ungated),
-    ("inline", Whitelisted, Ungated),
+    ("inline", Normal, Ungated),
     ("link", Whitelisted, Ungated),
     ("link_name", Whitelisted, Ungated),
     ("link_section", Whitelisted, Ungated),

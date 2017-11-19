@@ -57,7 +57,7 @@ struct CheckAttrVisitor<'a> {
 
 impl<'a> CheckAttrVisitor<'a> {
     /// Check any attribute.
-    fn check_attribute(&self, attr: &ast::Attribute, item: &ast::Item, target: Target) {
+    fn check_attribute(&self, attr: &ast::Attribute, item: Option<&ast::Item>, target: Target) {
         if let Some(name) = attr.name() {
             match &*name.as_str() {
                 "inline" => self.check_inline(attr, item, target),
@@ -68,10 +68,10 @@ impl<'a> CheckAttrVisitor<'a> {
     }
 
     /// Check if an `#[inline]` is applied to a function.
-    fn check_inline(&self, attr: &ast::Attribute, item: &ast::Item, target: Target) {
+    fn check_inline(&self, attr: &ast::Attribute, _item: Option<&ast::Item>, target: Target) {
         if target != Target::Fn {
             struct_span_err!(self.sess, attr.span, E0518, "attribute should be applied to function")
-                .span_label(item.span, "not a function")
+                .span_label(attr.span, "not a function")
                 .emit();
         }
         if ::std::env::var_os("ATTR").is_some() {
@@ -85,7 +85,7 @@ impl<'a> CheckAttrVisitor<'a> {
     }
 
     /// Check if an `#[repr]` attr is valid.
-    fn check_repr(&self, attr: &ast::Attribute, item: &ast::Item, target: Target) {
+    fn check_repr(&self, attr: &ast::Attribute, item: Option<&ast::Item>, target: Target) {
         let words = match attr.meta_item_list() {
             Some(words) => words,
             None => {
@@ -157,7 +157,7 @@ impl<'a> CheckAttrVisitor<'a> {
                 _ => continue,
             };
             struct_span_err!(self.sess, attr.span, E0517, "{}", message)
-                .span_label(item.span, format!("not {}", label))
+                .span_label(item.unwrap().span, format!("not {}", label))
                 .emit();
         }
         if conflicting_reprs > 1 {
@@ -171,7 +171,7 @@ impl<'a> Visitor<'a> for CheckAttrVisitor<'a> {
     fn visit_item(&mut self, item: &'a ast::Item) {
         let target = Target::from_item(item);
         for attr in &item.attrs {
-            self.check_attribute(attr, item, target);
+            self.check_attribute(attr, Some(item), target);
         }
         visit::walk_item(self, item);
     }
@@ -179,7 +179,7 @@ impl<'a> Visitor<'a> for CheckAttrVisitor<'a> {
     fn visit_trait_item(&mut self, item: &'a ast::TraitItem) {
         let target = Target::from_trait_item(item);
         for attr in &item.attrs {
-            self.check_attribute(attr, target);
+            self.check_attribute(attr, None/*item*/, target);
         }
         visit::walk_trait_item(self, item);
     }
@@ -187,7 +187,7 @@ impl<'a> Visitor<'a> for CheckAttrVisitor<'a> {
     fn visit_impl_item(&mut self, item: &'a ast::ImplItem) {
         let target = Target::from_impl_item(item);
         for attr in &item.attrs {
-            self.check_attribute(attr, target);
+            self.check_attribute(attr, None/*item*/, target);
         }
         visit::walk_impl_item(self, item);
     }
